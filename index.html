@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>Renault 4 Playlist Generator</title>
+<style>
+  :root{
+    --gap: 14px;
+    --radius: 14px;
+    --maxw: 720px;
+  }
+
+  html, body {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Inter, Arial, sans-serif;
+    background: #fff;
+    color: #111;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* iOS safe areas */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left);
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+  }
+
+  .wrap {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 24px;
+    box-sizing: border-box;
+    gap: 18px;
+  }
+
+  header {
+    text-align: center;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(1.25rem, 3.5vw, 1.75rem);
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+
+  .progress {
+    margin-top: 6px;
+    font-size: clamp(0.85rem, 2.5vw, 1rem);
+    opacity: 0.7;
+  }
+
+  .card {
+    background: #f6f7f8;
+    border-radius: var(--radius);
+    padding: 18px;
+    box-sizing: border-box;
+  }
+
+  .question {
+    font-size: clamp(1.05rem, 3.2vw, 1.25rem);
+    margin: 0 0 12px 0;
+    text-align: center;
+  }
+
+  .options {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--gap);
+  }
+
+  @media (min-width: 600px) {
+    .options {
+      grid-template-columns: 1fr 1fr; /* two columns on iPad / larger phones in landscape */
+    }
+  }
+
+  button.option {
+    display: inline-block;
+    width: 100%;
+    border: 0;
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    font-size: clamp(1rem, 2.8vw, 1.125rem);
+    font-weight: 600;
+    background: #ffffff;
+    box-shadow: 0 0 0 1px #dde1e5 inset;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+  button.option:active { transform: scale(0.99); }
+
+  .footer {
+    display: flex;
+    gap: var(--gap);
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .cta, .ghost {
+    border: 0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: clamp(0.95rem, 2.6vw, 1.05rem);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .cta {
+    background: #111;
+    color: #fff;
+  }
+  .cta:active { transform: scale(0.99); }
+
+  .ghost {
+    background: #f1f2f4;
+    color: #111;
+    box-shadow: 0 0 0 1px #e3e6ea inset;
+  }
+  .ghost:active { transform: scale(0.99); }
+
+  #output {
+    font-size: clamp(1rem, 2.6vw, 1.1rem);
+    line-height: 1.45;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  .note {
+    text-align: center;
+    font-size: 0.95rem;
+    opacity: 0.7;
+  }
+
+  /* Avoid accidental text selection on rapid taps */
+  * { -webkit-user-select: none; user-select: none; }
+  textarea, input { -webkit-user-select: auto; user-select: auto; }
+</style>
+</head>
+<body>
+  <div class="wrap" role="application" aria-label="Renault 4 Playlist Generator">
+    <header>
+      <h1>Create your roadtrip soundtrack</h1>
+      <div class="progress" id="progress" aria-live="polite"></div>
+    </header>
+
+    <section class="card" id="stage" aria-live="polite"></section>
+
+    <section class="card" id="result" style="display:none;">
+      <p id="output"></p>
+      <div class="footer" style="margin-top:14px;">
+        <button class="cta" id="copyBtn" type="button">Copy prompt</button>
+        <button class="ghost" id="restartBtn" type="button">Start again</button>
+      </div>
+      <p class="note">Paste this into Spotify when creating your playlist.</p>
+    </section>
+  </div>
+
+<script>
+/* Questions and tags */
+const questions = [
+  {
+    q: 'Are you a night owl, or an early riser?',
+    a: [
+      { label: 'Night owl', tags: 'late-night, moody, after-dark' },
+      { label: 'Early riser', tags: 'fresh, uplifting, bright' }
+    ]
+  },
+  {
+    q: 'Do you feel more at home in the country, or the city?',
+    a: [
+      { label: 'Country', tags: 'open roads, acoustic, organic' },
+      { label: 'City', tags: 'urban, modern, electronic' }
+    ]
+  },
+  {
+    q: 'On a roadtrip, are you blasting sing-along classics or driving with chill beats?',
+    a: [
+      { label: 'Sing-along classics', tags: 'retro hits, nostalgic, feel-good' },
+      { label: 'Chill beats', tags: 'downtempo, ambient, smooth' }
+    ]
+  },
+  {
+    q: 'Do you like exploring things that are new or getting lost in something old?',
+    a: [
+      { label: 'New', tags: 'futuristic, experimental, cutting-edge, fresh discoveries' },
+      { label: 'Old', tags: 'timeless, vintage, soulful, nostalgic gems' }
+    ]
+  }
+];
+
+let index = 0;
+const chosen = [];
+
+/* Elements */
+const stageEl = document.getElementById('stage');
+const progressEl = document.getElementById('progress');
+const resultSection = document.getElementById('result');
+const outputEl = document.getElementById('output');
+const copyBtn = document.getElementById('copyBtn');
+const restartBtn = document.getElementById('restartBtn');
+
+/* Render progress text */
+function renderProgress() {
+  progressEl.textContent = `Step ${Math.min(index + 1, questions.length)} of ${questions.length}`;
+}
+
+/* Render the current question */
+function renderQuestion() {
+  if (index >= questions.length) {
+    renderResult();
+    return;
+  }
+
+  renderProgress();
+
+  const q = questions[index];
+  const btns = q.a.map((opt, i) => {
+    const id = `opt-${index}-${i}`;
+    return `
+      <button class="option" id="${id}" type="button" aria-label="${opt.label}">
+        ${opt.label}
+      </button>
+    `;
+  }).join('');
+
+  stageEl.innerHTML = `
+    <h2 class="question">${q.q}</h2>
+    <div class="options">${btns}</div>
+  `;
+
+  // Attach handlers after inject for iOS compatibility
+  q.a.forEach((opt, i) => {
+    const id = `opt-${index}-${i}`;
+    document.getElementById(id).addEventListener('click', () => {
+      chosen.push(opt.tags);
+      index += 1;
+      renderQuestion();
+    }, { passive: true });
+  });
+}
+
+/* Build and show the final prompt */
+function renderResult() {
+  stageEl.innerHTML = '';
+  progressEl.textContent = 'Complete';
+  const prompt = `Create a Spotify playlist that feels ${chosen[0]}, in a ${chosen[1]} atmosphere. The soundtrack should feature ${chosen[2]} energy, with a sense of ${chosen[3]}.`;
+  outputEl.textContent = prompt;
+  resultSection.style.display = 'block';
+}
+
+/* Copy to clipboard (iOS compatible) */
+copyBtn.addEventListener('click', async () => {
+  const text = outputEl.textContent;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => copyBtn.textContent = 'Copy prompt', 1200);
+    } else {
+      // Fallback for older iOS
+      const tmp = document.createElement('textarea');
+      tmp.value = text;
+      tmp.style.position = 'fixed';
+      tmp.style.opacity = '0';
+      document.body.appendChild(tmp);
+      tmp.focus();
+      tmp.select();
+      document.execCommand('copy');
+      document.body.removeChild(tmp);
+      copyBtn.textContent = 'Copied';
+      setTimeout(() => copyBtn.textContent = 'Copy prompt', 1200);
+    }
+  } catch {
+    copyBtn.textContent = 'Copy failed';
+    setTimeout(() => copyBtn.textContent = 'Copy prompt', 1400);
+  }
+});
+
+/* Restart flow */
+restartBtn.addEventListener('click', () => {
+  index = 0;
+  chosen.length = 0;
+  resultSection.style.display = 'none';
+  renderQuestion();
+});
+
+/* Init */
+renderQuestion();
+</script>
+</body>
+</html>
